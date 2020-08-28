@@ -57,10 +57,10 @@ def active(model, aquirer, device, optimizer, num_batches=100):
     model.train()
     losses = []
     for batch_idx in range(num_batches):
-        data, target = aquirer.select(model)
+        data, target = aquirer.select_batch(model, 10)
         #data, target = data.to(device), target.to(device)
         # the aquirer returned a single x, so we need make it into size-1 batch
-        data, target = data[None,...].to(device), torch.LongTensor([target]).to(device)
+        data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
         output = model(data)
         loss = F.nll_loss(output, target)
@@ -130,7 +130,7 @@ if __name__ == '__main__':
         test(model, device, test_loader)
         scheduler.step()
 
-    pre_aquisition_model_state = model.state_dict()
+    pre_aquisition_model_state = model.state_dict().copy()
 
     for aquisition_strategy in [Random, BALD]:
         # reset the model
