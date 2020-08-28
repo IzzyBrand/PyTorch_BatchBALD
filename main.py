@@ -3,6 +3,7 @@ Massachusetts Institute of Technology
 
 Izzy Brand, 2020
 """
+from copy import deepcopy
 from matplotlib import pyplot as plt
 import torch
 import torch.nn as nn
@@ -25,26 +26,21 @@ class Net(nn.Module):
             nn.Linear(2048, 128),
             nn.Dropout(0.1),
             nn.ReLU(),
-            nn.Linear(128, 10),
-            nn.Dropout(0.1),
-            nn.ReLU(),
-        )
-
+            nn.Linear(128, 10))
 
     def forward(self, x):
         x = torch.flatten(x, 1)
-        x = self.layers(x)
-        output = F.log_softmax(x, dim=1)
-        return output
+        return self.layers(x)
 
 
 def train(model, device, train_loader, optimizer, epoch):
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
+        print(target.dtype)
         optimizer.zero_grad()
         output = model(data)
-        loss = F.nll_loss(output, target)
+        loss = F.cross_entropy(output, target)
         loss.backward()
         optimizer.step()
         if batch_idx % 10 == 0:
@@ -63,12 +59,12 @@ def active(model, aquirer, device, optimizer, num_batches=100):
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
         output = model(data)
-        loss = F.nll_loss(output, target)
+        loss = F.cross_entropy(output, target)
         loss.backward()
         optimizer.step()
         if batch_idx % 10 == 0:
             print('Active: [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                batch_idx * len(data), num_batches,
+                batch_idx * len(data), num_batches*10,
                 100. * batch_idx / num_batches, loss.item()))
 
         losses.append(loss.item())
@@ -83,7 +79,7 @@ def test(model, device, test_loader):
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
-            test_loss += F.nll_loss(output, target, reduction='sum').item()  # sum up batch loss
+            test_loss += F.cross_entropy(output, target, reduction='sum').item()  # sum up batch loss
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(target.view_as(pred)).sum().item()
 
@@ -95,6 +91,8 @@ def test(model, device, test_loader):
 
 
 if __name__ == '__main__':
+    lr = 0.001
+    batch_size = 64
     num_pretrain = 1000
     num_pool = 1000
     num_extra = 60000 - num_pretrain - num_pool
@@ -115,30 +113,28 @@ if __name__ == '__main__':
     test_data = datasets.MNIST('data', train=False,
                        transform=transform)
     pretrain_loader = torch.utils.data.DataLoader(pretrain_data,
-        batch_size=64, pin_memory=True, shuffle=True)
+        batch_size=batch_size, pin_memory=True, shuffle=True)
     test_loader = torch.utils.data.DataLoader(test_data,
-        batch_size=64, pin_memory=True, shuffle=True)
+        batch_size=batch_size, pin_memory=True, shuffle=True)
 
-    # init the model and optimizer with a learning-rate scheduler
+    # init the model and optimizer
     model = Net().to(device)
-    optimizer = optim.Adadelta(model.parameters(), lr=1.0)
-    scheduler = StepLR(optimizer, step_size=1, gamma=0.7)
+    optimizer = optim.Adam(model.parameters(), lr=lr)
 
     # train the model and test after each epoch
     for epoch in range(1, 2):
         train(model, device, pretrain_loader, optimizer, epoch)
-        test(model, device, test_loader)
-        scheduler.step()
+        test(model, device, test_loader)\
 
-    pre_aquisition_model_state = model.state_dict().copy()
+    pre_aquisition_model_state = model.state_dict()
 
     for aquisition_strategy in [Random, BALD]:
         # reset the model
-        model.load_state_dict(pre_aquisition_model_state)
+        model.load_state_dict(deepcopy(pre_aquisition_model_state))
         # init the aquirer
         aquirer = aquisition_strategy(pool_data, device)
         # and an optimizer
-        optimizer = optim.Adadelta(model.parameters(), lr=1.0)
+        optimizer = optim.Adam(model.parameters(), lr=lr)
         # train the model
         losses = active(model, aquirer, device, optimizer)
         # plot the losses
