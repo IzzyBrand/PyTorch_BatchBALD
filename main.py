@@ -136,7 +136,7 @@ if __name__ == '__main__':
         # reset the model
         model.load_state_dict(pre_aquisition_model_state)
         # init the aquirer
-        aquirer = aquisition_strategy(pool_data)
+        aquirer = aquisition_strategy(pool_data, device)
         # and an optimizer
         optimizer = optim.Adadelta(model.parameters(), lr=1.0)
         # train the model
