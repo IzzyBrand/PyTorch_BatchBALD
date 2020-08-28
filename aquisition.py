@@ -81,6 +81,13 @@ class Random(Aquirer):
     def score(model, _):
         return np.random.rand()
 
+# class BatchRandom(BatchAquirer):
+#     def __init__(self, pool_data):
+#         super(BatchRandom, self).__init__(pool_data)
+
+#     @staticmethod
+#     def score(model, ):
+#         return np.random.rand()
 
 
 # def BatchBALD_score(model, x, k=100):

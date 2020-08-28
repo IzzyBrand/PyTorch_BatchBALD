@@ -3,6 +3,7 @@ Massachusetts Institute of Technology
 
 Izzy Brand, 2020
 """
+from matplotlib import pyplot as plt
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -52,8 +53,9 @@ def train(model, device, train_loader, optimizer, epoch):
                 100. * batch_idx / len(train_loader), loss.item()))
 
 
-def active(model, aquirer, device, optimizer, epoch, num_batches=1000):
+def active(model, aquirer, device, optimizer, num_batches=100):
     model.train()
+    losses = []
     for batch_idx in range(num_batches):
         data, target = aquirer.select(model)
         #data, target = data.to(device), target.to(device)
@@ -65,9 +67,13 @@ def active(model, aquirer, device, optimizer, epoch, num_batches=1000):
         loss.backward()
         optimizer.step()
         if batch_idx % 10 == 0:
-            print('Active Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, batch_idx * len(data), num_batches,
+            print('Active: [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                batch_idx * len(data), num_batches,
                 100. * batch_idx / num_batches, loss.item()))
+
+        losses.append(loss.item())
+
+    return losses
 
 def test(model, device, test_loader):
     model.eval()
@@ -124,13 +130,19 @@ if __name__ == '__main__':
         test(model, device, test_loader)
         scheduler.step()
 
-    aquirer = BALD(pool_data)
-    optimizer = optim.Adadelta(model.parameters(), lr=1.0)
+    pre_aquisition_model_state = model.state_dict()
 
-    # train the model and test after each epoch
-    for epoch in range(1, 2):
-        active(model, aquirer, device, optimizer, epoch)
+    for aquisition_strategy in [Random, BALD]:
+        # reset the model
+        model.load_state_dict(pre_aquisition_model_state)
+        # init the aquirer
+        aquirer = aquisition_strategy(pool_data)
+        # and an optimizer
+        optimizer = optim.Adadelta(model.parameters(), lr=1.0)
+        # train the model
+        losses = active(model, aquirer, device, optimizer)
+        # plot the losses
+        plt.plot(losses, label=aquisition_strategy.__name__)
 
-
-    # save model parameters
-    # torch.save(model.state_dict(), "mnist_cnn.pt")
+    plt.legend()
+    plt.show()
