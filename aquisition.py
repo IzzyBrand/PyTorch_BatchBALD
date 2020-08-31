@@ -3,13 +3,11 @@ Massachusetts Institute of Technology
 
 Izzy Brand, 2020
 """
-
 import numpy as np
 import torch
 import torch.nn as nn
 
-def H(x):
-    return -x*torch.log(x)
+from util import *
 
 
 class Aquirer:
@@ -43,7 +41,7 @@ class Aquirer:
         # mask out the scores by remaining and choose the best one
         best_idx = torch.argmax(scores * self.remaining_indices)
         best_x = self.pool_dataset[best_idx]
-        self.remaining_indices[best_idx] = 0
+        self.remaining_indices[best_idx] = -np.inf
         return best_x
 
     def select_batch(self, model, batch_size):
@@ -56,10 +54,9 @@ class BALD(Aquirer):
         super(BALD, self).__init__(pool_dataset, device)
 
     @staticmethod
-    def score(model, x, k=100):
-        # I(y;W | x) = H(y|x) - E_w[ H(y|x,W) ]
+    def score(model, x, k=10):
+        # I(y;W | x) = H1 - H2 = H(y|x) - E_w[H(y|x,W)]
 
-        model.train() # make sure dropout is enabled
         with torch.no_grad():
             # take k monte-carlo samples of forward pass w/ dropout
             Y = torch.stack([model(x) for i in range(k)], dim=1)
@@ -77,45 +74,53 @@ class Random(Aquirer):
     def score(model, _):
         return np.random.rand()
 
-class BatchAquirer:
-    def __init__(self, pool_dataset, device):
-        self.pool_dataset = pool_dataset
-        self.remaining_indices = torch.ones(len(pool_dataset), dtype=bool)
 
-    @staticmethod
-    def score(model, batch, x):
-        return torch.zeros(len(x))
-
-    def select_batch(self, model, batch_size):
-        batch = []
-        batch_idxs = []
-        for _ in range(batch_size):
-            scores = [self.score(model, batch, x) for x,y in self.pool_dataset]
-            best_idx = np.argmax(np.array(scores)*self.remaining_indices)
-            batch_idxs.append(best_idx)
-            batch.append(self.pool_dataset[best_idx])
-
-        self.remaining_indices[best_idxs] = 0
-        return batch
-
-
-class BatchBALD(BatchAquirer):
+class BatchBALD(Aquirer):
     def __init__(self, pool_dataset, device):
         super(BatchBALD, self).__init__(pool_dataset, device)
-        self.m = 1000 # number of MC samples for labels
+        self.m = 1e5 # number of MC samples for labels
 
-    def score(model, batch, x, k=100):
-        model.train() # make sure dropout is enabled
+    def select_batch(self, model, batch_size, k=10):
+        # I(y;W | x) = H1 - H2 = H(y|x) - E_w[H(y|x,W)]
+
+        c = 10 # number of classes
+
+        # forward pass on the pool once to get class probabilities for each x
         with torch.no_grad():
-            # take k monte-carlo samples of forward pass w/ dropout
-            Y = torch.cat([model(x) for i in range(k)])
+            # produces a tensor of [N x k x c] where N is the pool size
+            pool_p_y = torch.stack([model(self.pool_data) for i in range(k)], dim=1)
 
-            H1 = H(Y.mean(axis=0)).sum()
-            H2 = H(Y).sum()/k
+        # this only need to be calculated once so we pull it out of the loop
+        H2 = H(pool_p_y+1e-5).sum(axis=(1,2))/k
 
+        # get all class combinations
+        c_1_to_n = class_combinations(c, batch_size, self.m)
 
-    def select_batch(self, model, batch_size):
-        mc_labels = torch.randint(low=0, high=10, size=(m,))
+        # tensor of size [N x c^(n-1) x k]
+        p_y_1_to_n_minus_1 = None
 
-        for i in range(batch_size):
+        batch_idxs = []
+        for n in range(batch_size):
+            # tensor of size [N x c x k]
+            p_y_n = pool_p_y
+            # tensor of size [N x c^n x k]
+            p_y_1_to_n = torch.flatten(torch.einsum('pik,pjk->pijk', p_y_1_to_n_minus_1, p_y_n), 1, 2)\
+                if p_y_1_to_n_minus_1 is not None else p_y_n
+            # save the computation for the next batch
+            p_y_1_to_n_minus_1 = p_y_1_to_n
 
+            H1 = H(p_y_1_to_n.mean(axis=2)+1e-5).sum(axis=1)
+
+            # scores is a vector of scores for each element in the pool.
+            # mask by the remaining indices and find the highest scoring element
+            scores = (H1 - H2) - np.inf*(~self.remaining_indices)
+            # print(scores)
+            best_idx = torch.argmax(scores)
+            # print(f'Best idx {best_idx}')
+            batch_idxs.append(best_idx)
+            # remove the chosen element from the remaining indices mask
+            self.remaining_indices[best_idx] = False
+
+        data, target = zip(*[self.pool_dataset[i] for i in batch_idxs])
+        # print(self.remaining_indices.sum())
+        return torch.cat(data), torch.LongTensor(target)

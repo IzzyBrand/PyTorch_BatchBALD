@@ -21,25 +21,28 @@ class Net(nn.Module):
 
         self.layers = nn.Sequential(
             nn.Linear(784, 2048),
-            nn.Dropout(0.1),
+            nn.Dropout(0.5),
             nn.ReLU(),
             nn.Linear(2048, 128),
-            nn.Dropout(0.1),
+            nn.Dropout(0.5),
             nn.ReLU(),
             nn.Linear(128, 10))
 
-    def forward(self, x):
+    def forward(self, x, return_logits=False):
         x = torch.flatten(x, 1)
-        return self.layers(x)
+        logits = self.layers(x)
+        if return_logits:
+            return logits
+        else:
+            return F.softmax(logits, 1)
 
 
 def train(model, device, train_loader, optimizer, epoch):
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
-        print(target.dtype)
         optimizer.zero_grad()
-        output = model(data)
+        output = model(data, return_logits=True)
         loss = F.cross_entropy(output, target)
         loss.backward()
         optimizer.step()
@@ -50,21 +53,22 @@ def train(model, device, train_loader, optimizer, epoch):
 
 
 def active(model, aquirer, device, optimizer, num_batches=100):
+    batch_size = 4
     model.train()
     losses = []
     for batch_idx in range(num_batches):
-        data, target = aquirer.select_batch(model, 10)
+        data, target = aquirer.select_batch(model, batch_size)
         #data, target = data.to(device), target.to(device)
         # the aquirer returned a single x, so we need make it into size-1 batch
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
-        output = model(data)
+        output = model(data, return_logits=True)
         loss = F.cross_entropy(output, target)
         loss.backward()
         optimizer.step()
         if batch_idx % 10 == 0:
-            print('Active: [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                batch_idx * len(data), num_batches*10,
+            print('Active {}: [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                aquirer.__class__.__name__, batch_idx * len(data), num_batches*batch_size,
                 100. * batch_idx / num_batches, loss.item()))
 
         losses.append(loss.item())
@@ -78,7 +82,7 @@ def test(model, device, test_loader):
     with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
-            output = model(data)
+            output = model(data, return_logits=True)
             test_loss += F.cross_entropy(output, target, reduction='sum').item()  # sum up batch loss
             pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
             correct += pred.eq(target.view_as(pred)).sum().item()
@@ -93,7 +97,7 @@ def test(model, device, test_loader):
 if __name__ == '__main__':
     lr = 0.001
     batch_size = 64
-    num_pretrain = 1000
+    num_pretrain = 10000
     num_pool = 1000
     num_extra = 60000 - num_pretrain - num_pool
 
@@ -128,7 +132,7 @@ if __name__ == '__main__':
 
     pre_aquisition_model_state = model.state_dict()
 
-    for aquisition_strategy in [Random, BALD]:
+    for aquisition_strategy in [Random, BatchBALD, BALD]:
         # reset the model
         model.load_state_dict(deepcopy(pre_aquisition_model_state))
         # init the aquirer
