@@ -67,7 +67,7 @@ def active(model, aquirer, device, optimizer, num_batches=100):
         loss.backward()
         optimizer.step()
         if batch_idx % 10 == 0:
-            print('Active {}: [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+            print('Active {}:\t[{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 aquirer.__class__.__name__, batch_idx * len(data), num_batches*batch_size,
                 100. * batch_idx / num_batches, loss.item()))
 

@@ -32,16 +32,19 @@ def class_combinations(c, n, m=np.inf):
         p_c = combinations_with_replacement(np.arange(c), n)
         return np.array(list(iter(p_c)), dtype=int)
 
-def H(x):
+def H(x, eps=1e-6):
     """ Compute the element-wise entropy of x
 
     Arguments:
-        x {torch.Tensor} -- array of numbers
+        x {torch.Tensor} -- array of probabilities in (0,1)
+
+    Keyword Arguments:
+        eps {float} -- prevent failure on x == 0
 
     Returns:
         torch.Tensor -- H(x)
     """
-    return -x*torch.log(x)
+    return -(x+eps)*torch.log(x+eps)
 
 def hasnan(x):
     return torch.isnan(x).any()

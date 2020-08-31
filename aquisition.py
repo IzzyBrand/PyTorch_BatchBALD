@@ -37,12 +37,14 @@ class Aquirer:
         return torch.zeros(len(x))
 
     def select(self, model):
+        # score every datapoint in the pool under the model
         scores = self.score(model, self.pool_data)
         # mask out the scores by remaining and choose the best one
-        best_idx = torch.argmax(scores * self.remaining_indices)
-        best_x = self.pool_dataset[best_idx]
-        self.remaining_indices[best_idx] = -np.inf
-        return best_x
+        best_idx = torch.argmax(scores - np.inf*(~self.remaining_indices))
+        # and mark that index as taken
+        self.remaining_indices[best_idx] = False
+        # and return the data at the chosen index
+        return self.pool_dataset[best_idx]
 
     def select_batch(self, model, batch_size):
         data, target = zip(*[self.select(model) for _ in range(batch_size)])
@@ -91,7 +93,7 @@ class BatchBALD(Aquirer):
             pool_p_y = torch.stack([model(self.pool_data) for i in range(k)], dim=1)
 
         # this only need to be calculated once so we pull it out of the loop
-        H2 = H(pool_p_y+1e-5).sum(axis=(1,2))/k
+        H2 = H(pool_p_y).sum(axis=(1,2))/k
 
         # get all class combinations
         c_1_to_n = class_combinations(c, batch_size, self.m)
@@ -109,13 +111,13 @@ class BatchBALD(Aquirer):
             # save the computation for the next batch
             p_y_1_to_n_minus_1 = p_y_1_to_n
 
-            H1 = H(p_y_1_to_n.mean(axis=2)+1e-5).sum(axis=1)
+            H1 = H(p_y_1_to_n.mean(axis=2)).sum(axis=1)
 
             # scores is a vector of scores for each element in the pool.
             # mask by the remaining indices and find the highest scoring element
-            scores = (H1 - H2) - np.inf*(~self.remaining_indices)
+            scores = (H1 - H2)
             # print(scores)
-            best_idx = torch.argmax(scores)
+            best_idx = torch.argmax(scores - np.inf*(~self.remaining_indices))
             # print(f'Best idx {best_idx}')
             batch_idxs.append(best_idx)
             # remove the chosen element from the remaining indices mask
