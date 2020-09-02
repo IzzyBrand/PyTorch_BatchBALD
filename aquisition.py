@@ -80,17 +80,17 @@ class Random(Aquirer):
 class BatchBALD(Aquirer):
     def __init__(self, pool_dataset, device):
         super(BatchBALD, self).__init__(pool_dataset, device)
-        self.m = 1e5 # number of MC samples for labels
+        self.m = 1e4 # number of MC samples for labels
 
-    def select_batch(self, model, batch_size, k=10):
+    def select_batch(self, model, batch_size, k=100):
         # I(y;W | x) = H1 - H2 = H(y|x) - E_w[H(y|x,W)]
 
         c = 10 # number of classes
 
         # forward pass on the pool once to get class probabilities for each x
         with torch.no_grad():
-            # produces a tensor of [N x k x c] where N is the pool size
-            pool_p_y = torch.stack([model(self.pool_data) for i in range(k)], dim=1)
+            # produces a tensor of [N x c x k] where N is the pool size
+            pool_p_y = torch.stack([model(self.pool_data) for i in range(k)], dim=1).permute(0,2,1)
 
         # this only need to be calculated once so we pull it out of the loop
         H2 = H(pool_p_y).sum(axis=(1,2))/k
@@ -98,15 +98,15 @@ class BatchBALD(Aquirer):
         # get all class combinations
         c_1_to_n = class_combinations(c, batch_size, self.m)
 
-        # tensor of size [c^(n-1) x k]
+        # tensor of size [m x k]
         p_y_1_to_n_minus_1 = None
 
         batch_idxs = []
         for n in range(batch_size):
-            # tensor of size [N x c x k]
-            p_y_n = pool_p_y
-            # tensor of size [N x c^n x k]
-            p_y_1_to_n = torch.flatten(torch.einsum('ik,pjk->pijk', p_y_1_to_n_minus_1, p_y_n), 1, 2)\
+            # tensor of size [N x m x l]
+            p_y_n = pool_p_y[:, c_1_to_n[:, n], :]
+            # tensor of size [N x m x k]
+            p_y_1_to_n = torch.einsum('mk,pmk->pmk', p_y_1_to_n_minus_1, p_y_n)\
                 if p_y_1_to_n_minus_1 is not None else p_y_n
 
             # and compute the left entropy term

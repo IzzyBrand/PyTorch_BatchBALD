@@ -53,7 +53,7 @@ def train(model, device, train_loader, optimizer, epoch):
 
 
 def active(model, aquirer, device, optimizer, num_batches=100):
-    batch_size = 5
+    batch_size = 64
     model.train()
     losses = []
     for batch_idx in range(num_batches):
@@ -126,13 +126,13 @@ if __name__ == '__main__':
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
     # train the model and test after each epoch
-    for epoch in range(1, 2):
+    for epoch in range(1, 1):
         train(model, device, pretrain_loader, optimizer, epoch)
         test(model, device, test_loader)\
 
     pre_aquisition_model_state = model.state_dict()
 
-    for aquisition_strategy in [Random, BatchBALD, BALD]:
+    for aquisition_strategy in [BatchBALD]:#[Random, BatchBALD, BALD]:
         # reset the model
         model.load_state_dict(deepcopy(pre_aquisition_model_state))
         # init the aquirer

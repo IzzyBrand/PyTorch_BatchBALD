@@ -27,7 +27,7 @@ def class_combinations(c, n, m=np.inf):
 
     if m < c**n:
         # randomly sample combinations
-        return np.random.randint(c, size=(m, n))
+        return np.random.randint(c, size=(int(m), n))
     else:
         p_c = combinations_with_replacement(np.arange(c), n)
         return np.array(list(iter(p_c)), dtype=int)
