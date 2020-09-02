@@ -53,7 +53,7 @@ def train(model, device, train_loader, optimizer, epoch):
 
 
 def active(model, aquirer, device, optimizer, num_batches=100):
-    batch_size = 4
+    batch_size = 5
     model.train()
     losses = []
     for batch_idx in range(num_batches):

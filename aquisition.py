@@ -98,7 +98,7 @@ class BatchBALD(Aquirer):
         # get all class combinations
         c_1_to_n = class_combinations(c, batch_size, self.m)
 
-        # tensor of size [N x c^(n-1) x k]
+        # tensor of size [c^(n-1) x k]
         p_y_1_to_n_minus_1 = None
 
         batch_idxs = []
@@ -106,20 +106,20 @@ class BatchBALD(Aquirer):
             # tensor of size [N x c x k]
             p_y_n = pool_p_y
             # tensor of size [N x c^n x k]
-            p_y_1_to_n = torch.flatten(torch.einsum('pik,pjk->pijk', p_y_1_to_n_minus_1, p_y_n), 1, 2)\
+            p_y_1_to_n = torch.flatten(torch.einsum('ik,pjk->pijk', p_y_1_to_n_minus_1, p_y_n), 1, 2)\
                 if p_y_1_to_n_minus_1 is not None else p_y_n
-            # save the computation for the next batch
-            p_y_1_to_n_minus_1 = p_y_1_to_n
 
+            # and compute the left entropy term
             H1 = H(p_y_1_to_n.mean(axis=2)).sum(axis=1)
-
             # scores is a vector of scores for each element in the pool.
             # mask by the remaining indices and find the highest scoring element
-            scores = (H1 - H2)
+            scores = H1 - H2
             # print(scores)
             best_idx = torch.argmax(scores - np.inf*(~self.remaining_indices))
             # print(f'Best idx {best_idx}')
             batch_idxs.append(best_idx)
+            # save the computation for the next batch
+            p_y_1_to_n_minus_1 = p_y_1_to_n[best_idx]
             # remove the chosen element from the remaining indices mask
             self.remaining_indices[best_idx] = False
 
