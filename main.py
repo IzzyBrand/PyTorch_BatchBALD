@@ -98,7 +98,7 @@ if __name__ == '__main__':
     lr = 0.001
     batch_size = 64
     num_pretrain = 10000
-    num_pool = 1000
+    num_pool = 500
     num_extra = 60000 - num_pretrain - num_pool
 
     # set up the GPU if one exists
@@ -126,7 +126,7 @@ if __name__ == '__main__':
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
     # train the model and test after each epoch
-    for epoch in range(1, 1):
+    for epoch in range(1, 2):
         train(model, device, pretrain_loader, optimizer, epoch)
         test(model, device, test_loader)\
 

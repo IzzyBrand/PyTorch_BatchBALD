@@ -49,4 +49,6 @@ ENV/
 env.bak/
 venv.bak/
 
+# sublime-sftp
+sftp-config.json
 

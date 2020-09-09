@@ -21,7 +21,7 @@ class Aquirer:
         self.pool_dataset = pool_dataset
         # pull out the block of data in a tensor (no labels)
         self.pool_data = pool_dataset.dataset.data[pool_dataset.indices, None, ...].float().to(device)
-        self.remaining_indices = torch.ones(len(pool_dataset), dtype=bool)
+        self.remaining_indices = torch.ones(len(pool_dataset), dtype=bool).to(device)
 
     @staticmethod
     def score(model, x):
