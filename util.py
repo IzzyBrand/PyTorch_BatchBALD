@@ -48,3 +48,13 @@ def H(x, eps=1e-6):
 
 def hasnan(x):
     return torch.isnan(x).any()
+
+def remove_occurrences_from_list(l, items):
+    return list(np.setdiff1d(np.array(l), np.array(items), assume_unique=True))
+
+def move_data(indices, from_subset, to_subset):
+    from_subset.indices = remove_occurrences_from_list(from_subset.indices, indices)
+    if isinstance(to_subset.indices, list):
+        to_subset.indices.extend(indices)
+    elif isinstance(to_subset.indices, np.ndarray):
+        to_subset.indices = np.concatenate([to_subset.indices, np.array(indices)])
