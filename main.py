@@ -59,29 +59,26 @@ def train(model, device, train_loader, optimizer, epoch):
                 epoch, batch_idx * len(data), len(train_loader.dataset),
                 100. * batch_idx / len(train_loader), loss.item()))
 
+def test(model, device, test_loader):
+    model.eval()
+    test_loss = 0
+    correct = 0
+    with torch.no_grad():
+        for data, target in test_loader:
+            data, target = data.to(device), target.to(device)
+            output = model(data, return_logits=True)
+            test_loss += F.cross_entropy(output, target, reduction='sum').item()  # sum up batch loss
+            pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
+            correct += pred.eq(target.view_as(pred)).sum().item()
 
-# def active(model, acquirer, device, optimizer, num_batches=100):
-#     batch_size = 64
-#     model.train()
-#     losses = []
-#     for batch_idx in range(num_batches):
-#         data, target = acquirer.select_batch(model, batch_size)
-#         #data, target = data.to(device), target.to(device)
-#         # the acquirer returned a single x, so we need make it into size-1 batch
-#         data, target = data.to(device), target.to(device)
-#         optimizer.zero_grad()
-#         output = model(data, return_logits=True)
-#         loss = F.cross_entropy(output, target)
-#         loss.backward()
-#         optimizer.step()
-#         if batch_idx % 10 == 0:
-#             print('Active {}:\t[{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-#                 acquirer.__class__.__name__, batch_idx * len(data), num_batches*batch_size,
-#                 100. * batch_idx / num_batches, loss.item()))
+    test_loss /= len(test_loader.dataset)
+    accuracy = float(correct) / len(test_loader.dataset)
 
-#         losses.append(loss.item())
+    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        test_loss, correct, len(test_loader.dataset),
+        100. * accuracy))
 
-#     return losses
+    return accuracy
 
 def active(model, acquirer, device, data, optimizer):
     train_data, pool_data, test_data = data
@@ -105,34 +102,11 @@ def active(model, acquirer, device, data, optimizer):
 
     return test_accuracies
 
-def test(model, device, test_loader):
-    model.eval()
-    test_loss = 0
-    correct = 0
-    with torch.no_grad():
-        for data, target in test_loader:
-            data, target = data.to(device), target.to(device)
-            output = model(data, return_logits=True)
-            test_loss += F.cross_entropy(output, target, reduction='sum').item()  # sum up batch loss
-            pred = output.argmax(dim=1, keepdim=True)  # get the index of the max log-probability
-            correct += pred.eq(target.view_as(pred)).sum().item()
-
-    test_loss /= len(test_loader.dataset)
-    accuracy = float(correct) / len(test_loader.dataset)
-
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-        test_loss, correct, len(test_loader.dataset),
-        100. * accuracy))
-
-    return accuracy
-
 
 if __name__ == '__main__':
     # set up the GPU if one exists
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
-
-
 
     # load the dataset and pre-process
     transform=transforms.Compose([
