@@ -87,6 +87,10 @@ class BatchBALD(acquirer):
         num_extra = len(pool_data) - self.num_sub_pool
         if num_extra > 0:
             sub_pool_data, _ = torch.utils.data.random_split(pool_data, [self.num_sub_pool, num_extra])
+        else:
+            # even if we don't have enough data left to split, we still need to
+            # call random_splot to avoid messing up the indexing later on
+            sub_pool_data, _ = torch.utils.data.random_split(pool_data, [len(pool_data), 0])
 
          # forward pass on the pool once to get class probabilities for each x
         with torch.no_grad():
