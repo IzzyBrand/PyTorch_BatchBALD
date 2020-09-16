@@ -10,7 +10,7 @@ import torch.nn as nn
 from util import *
 
 
-class acquirer:
+class Acquirer:
     """ Base class for acquisition function
     """
     def __init__(self, batch_size, device):
@@ -45,7 +45,7 @@ class acquirer:
         return best_global_indices
 
 
-class BALD(acquirer):
+class BALD(Acquirer):
     def __init__(self, pool_data, device):
         super(BALD, self).__init__(pool_data, device)
 
@@ -62,7 +62,7 @@ class BALD(acquirer):
             return H1 - H2
 
 
-class Random(acquirer):
+class Random(Acquirer):
     def __init__(self, pool_data, device):
         super(Random, self).__init__(pool_data, device)
 
@@ -71,7 +71,7 @@ class Random(acquirer):
         return np.random.rand()
 
 
-class BatchBALD(acquirer):
+class BatchBALD(Acquirer):
     def __init__(self, pool_data, device):
         super(BatchBALD, self).__init__(pool_data, device)
         self.m = 1e4  # number of MC samples for label combinations
