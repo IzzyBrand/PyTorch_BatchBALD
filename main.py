@@ -12,7 +12,7 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 
-from aquisition import *
+from acquisition import *
 from util import *
 
 
@@ -60,14 +60,14 @@ def train(model, device, train_loader, optimizer, epoch):
                 100. * batch_idx / len(train_loader), loss.item()))
 
 
-# def active(model, aquirer, device, optimizer, num_batches=100):
+# def active(model, acquirer, device, optimizer, num_batches=100):
 #     batch_size = 64
 #     model.train()
 #     losses = []
 #     for batch_idx in range(num_batches):
-#         data, target = aquirer.select_batch(model, batch_size)
+#         data, target = acquirer.select_batch(model, batch_size)
 #         #data, target = data.to(device), target.to(device)
-#         # the aquirer returned a single x, so we need make it into size-1 batch
+#         # the acquirer returned a single x, so we need make it into size-1 batch
 #         data, target = data.to(device), target.to(device)
 #         optimizer.zero_grad()
 #         output = model(data, return_logits=True)
@@ -76,23 +76,23 @@ def train(model, device, train_loader, optimizer, epoch):
 #         optimizer.step()
 #         if batch_idx % 10 == 0:
 #             print('Active {}:\t[{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-#                 aquirer.__class__.__name__, batch_idx * len(data), num_batches*batch_size,
+#                 acquirer.__class__.__name__, batch_idx * len(data), num_batches*batch_size,
 #                 100. * batch_idx / num_batches, loss.item()))
 
 #         losses.append(loss.item())
 
 #     return losses
 
-def active(model, aquirer, device, data, optimizer):
+def active(model, acquirer, device, data, optimizer):
     train_data, pool_data, test_data = data
 
     test_accuracies = []
-    while len(pool_data.indices) > 0:
+    while len(pool_data) > 0:
+        print(f'Acquiring {acquirer.__class__.__name__} batch. Pool size: {len(pool_data)}')
         # get the indices of the best batch of data
-        batch_indices = aquirer.select_batch(model, pool_data)
+        batch_indices = acquirer.select_batch(model, pool_data)
         # move that data from the pool to the training set
         move_data(batch_indices, pool_data, train_data)
-
         # train on it
         train_loader = torch.utils.data.DataLoader(train_data,
             batch_size=train_batch_size, pin_memory=True, shuffle=True)
@@ -162,13 +162,13 @@ if __name__ == '__main__':
         train(model, device, pretrain_loader, optimizer, epoch)
         test(model, device, test_loader)\
 
-    pre_aquisition_model_state = model.state_dict()
+    pre_acquisition_model_state = model.state_dict()
 
-    for aquisition_strategy in [Random, BALD]:#[Random, BatchBALD, BALD]:
+    for acquisition_strategy in [Random, BALD, BatchBALD]:
         # reset the model
-        model.load_state_dict(deepcopy(pre_aquisition_model_state))
-        # init the aquirer
-        aquirer = aquisition_strategy(acquisition_batch_size, device)
+        model.load_state_dict(deepcopy(pre_acquisition_model_state))
+        # init the acquirer
+        acquirer = acquisition_strategy(acquisition_batch_size, device)
         # and an optimizer
         optimizer = optim.Adam(model.parameters(), lr=lr)
         # get all the data
@@ -176,9 +176,9 @@ if __name__ == '__main__':
         pool_data = torch.utils.data.Subset(dataset, pool_indices)
         data = (train_data, pool_data, test_data)
         # train the model with active learning
-        accuracies = active(model, aquirer, device, data, optimizer)
+        accuracies = active(model, acquirer, device, data, optimizer)
         # plot the accuracies
-        plt.plot(accuracies, label=aquisition_strategy.__name__)
+        plt.plot(accuracies, label=acquisition_strategy.__name__)
 
     plt.legend()
     plt.show()

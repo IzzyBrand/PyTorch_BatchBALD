@@ -50,7 +50,9 @@ def hasnan(x):
     return torch.isnan(x).any()
 
 def remove_occurrences_from_list(l, items):
-    return list(np.setdiff1d(np.array(l), np.array(items), assume_unique=True))
+    # print(items)
+    return list(np.setdiff1d(np.array(l, dtype=int),
+        np.array(items, dtype=int), assume_unique=True))
 
 def move_data(indices, from_subset, to_subset):
     from_subset.indices = remove_occurrences_from_list(from_subset.indices, indices)
